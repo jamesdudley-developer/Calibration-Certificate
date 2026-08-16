@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes" />
+  <meta name="theme-color" content="#0f2744" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Calibration Certificate</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="stylesheet" href="styles.css?v=5" />
+  <script src="lib/chart.umd.min.js"></script>
+  <script src="lib/jspdf.umd.min.js"></script>
+  <script src="lib/jspdf.plugin.autotable.min.js"></script>
+  <script src="lib/xlsx.full.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-top">
+      <h1>Calibration Certificate</h1>
+      <button type="button" id="installBtn" class="install-btn" hidden>Install</button>
+    </div>
+    <div class="header-meta">
+      <label>Certificate No.
+        <input type="text" id="certNo" placeholder="e.g. 260803-1" />
+      </label>
+      <label>Result
+        <select id="result">
+          <option value="PASSED" selected>PASSED</option>
+          <option value="FAILED">FAILED</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <main>
+    <!-- Device Details -->
+    <section class="card">
+      <h2>Device Details</h2>
+      <div class="grid-2">
+        <label>Instrument ID <input type="text" id="instrumentId" placeholder="e.g. LIT-406" /></label>
+        <label>Process ID <input type="text" id="processId" /></label>
+        <label>Serial Number <input type="text" id="serialNumber" placeholder="Device serial" /></label>
+        <label>Manufacturer <input type="text" id="manufacturer" placeholder="e.g. Rosemount" /></label>
+        <label>Model <input type="text" id="model" placeholder="e.g. 3051C" /></label>
+        <label>Extended Model <input type="text" id="extendedModel" placeholder="e.g. full model code" /></label>
+      </div>
+    </section>
+
+    <!-- Calibration Details -->
+    <section class="card">
+      <h2>Calibration Details</h2>
+      <div class="grid-2">
+        <label>Calibration Date <input type="date" id="calDate" /></label>
+        <label>Calibration Interval <input type="text" id="calInterval" placeholder="e.g. 12 months" /></label>
+        <label>Technician <input type="text" id="technician" /></label>
+        <label>Max Error Limit (%) <input type="number" id="maxErrorLimit" step="0.01" placeholder="e.g. 1.0" /></label>
+        <label>Service Reason <input type="text" id="serviceReason" /></label>
+        <label>Adjustment Limit (%) <input type="number" id="adjLimit" step="0.01" placeholder="e.g. 0.5" /></label>
+        <label>Work Order <input type="text" id="workOrder" /></label>
+        <label>Critical Service
+          <select id="criticalService">
+            <option value="No">No</option>
+            <option value="Yes">Yes</option>
+          </select>
+        </label>
+        <label>Site Location <input type="text" id="siteLocation" /></label>
+        <label>Sensor Type <input type="text" id="sensorType" placeholder="e.g. Differential Pressure" /></label>
+        <label>Ambient Temperature <input type="text" id="ambientTemp" placeholder="e.g. 22 °C" /></label>
+        <label>Sensor Limits <input type="text" id="sensorLimits" /></label>
+      </div>
+    </section>
+
+    <!-- Range / Span -->
+    <section class="card">
+      <h2>Range &amp; Span</h2>
+      <div class="grid-3">
+        <label>Unit
+          <select id="unitSelect">
+            <option value="mmH2O" data-category="Pressure">mmH₂O (Pressure)</option>
+            <option value="kPa" data-category="Pressure">kPa (Pressure)</option>
+            <option value="bar" data-category="Pressure">bar (Pressure)</option>
+            <option value="mbar" data-category="Pressure">mbar (Pressure)</option>
+            <option value="psi" data-category="Pressure">psi (Pressure)</option>
+            <option value="LevelPct" data-category="Level">Level % (Level)</option>
+            <option value="m" data-category="Level">m (Level)</option>
+            <option value="mm" data-category="Level">mm (Level)</option>
+            <option value="m³/h" data-category="Flow">m³/h (Flow)</option>
+            <option value="L/min" data-category="Flow">L/min (Flow)</option>
+            <option value="°C" data-category="Temperature">°C (Temperature)</option>
+            <option value="°F" data-category="Temperature">°F (Temperature)</option>
+            <option value="kg" data-category="Mass">kg (Mass)</option>
+            <option value="t" data-category="Mass">t (Mass)</option>
+            <option value="Switch" data-category="Discrete">Switch (Discrete)</option>
+          </select>
+        </label>
+        <label>LRV <input type="number" id="lrv" step="any" placeholder="LRV" /></label>
+        <label>URV <input type="number" id="urv" step="any" placeholder="URV" /></label>
+      </div>
+      <div id="sqrtExtractionWrap" class="toggle-row">
+        <label class="toggle-switch">
+          <input type="checkbox" id="sqrtExtraction" />
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-text">Square root extraction: <strong id="sqrtExtractionState">OFF</strong></span>
+      </div>
+      <p class="span-display">Span: <strong id="spanValue">6460</strong> <span id="unitLabel">mmH₂O</span></p>
+    </section>
+
+    <!-- Calibration Equipment -->
+    <section class="card">
+      <h2>Calibration Equipment</h2>
+      <div class="equip-table-wrap">
+        <table class="equip-table">
+          <thead>
+            <tr>
+              <th>Device</th>
+              <th>Serial</th>
+              <th>Next Calibration Due</th>
+            </tr>
+          </thead>
+          <tbody id="equipBody">
+            <tr>
+              <td><input type="text" placeholder="Device" /></td>
+              <td><input type="text" placeholder="Serial" /></td>
+              <td><input type="date" /></td>
+            </tr>
+            <tr>
+              <td><input type="text" placeholder="Device" /></td>
+              <td><input type="text" placeholder="Serial" /></td>
+              <td><input type="date" /></td>
+            </tr>
+          </tbody>
+        </table>
+        <button type="button" class="btn-secondary" id="addEquip">+ Add Equipment</button>
+      </div>
+    </section>
+
+    <!-- AS FOUND -->
+    <section class="card">
+      <h2>AS FOUND</h2>
+      <div class="table-scroll">
+        <table class="data-table" id="asFoundTable">
+          <thead>
+            <tr>
+              <th>Test Point</th>
+              <th id="afUnitHeader">mmH₂O</th>
+              <th id="afCol3Header">Target mA</th>
+              <th id="afCol4Header">Measured mA</th>
+              <th id="afCol5Header">mA Error</th>
+              <th id="afCol6Header">% Span Error</th>
+            </tr>
+          </thead>
+          <tbody id="asFoundBody">
+            <!-- rows generated by JS -->
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn-secondary" id="addAfRow">+ Add Test Point</button>
+    </section>
+
+    <!-- AS LEFT -->
+    <section class="card">
+      <h2>AS LEFT</h2>
+      <div class="table-scroll">
+        <table class="data-table" id="asLeftTable">
+          <thead>
+            <tr>
+              <th>Test Point</th>
+              <th id="alUnitHeader">mmH₂O</th>
+              <th id="alCol3Header">Target mA</th>
+              <th id="alCol4Header">Measured mA</th>
+              <th id="alCol5Header">mA Error</th>
+              <th id="alCol6Header">% Span Error</th>
+            </tr>
+          </thead>
+          <tbody id="asLeftBody">
+            <!-- rows generated by JS -->
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="btn-secondary" id="addAlRow">+ Add Test Point</button>
+    </section>
+
+    <!-- Graph -->
+    <section class="card" id="chartCard">
+      <h2>% Span Error</h2>
+      <div class="chart-container" id="chartContainer">
+        <canvas id="errorChart"></canvas>
+      </div>
+      <p id="chartSwitchNote" class="muted-note" style="display:none;">Trend chart is not applicable for discrete switch calibration — Pass/Fail results are shown directly in the AS FOUND / AS LEFT tables above.</p>
+    </section>
+
+    <!-- Comments -->
+    <section class="card">
+      <h2>Comments</h2>
+      <textarea id="comments" rows="3" placeholder="Notes, observations, adjustments made…"></textarea>
+    </section>
+
+    <!-- Sign Off -->
+    <section class="card">
+      <h2>Sign Off</h2>
+      <div class="signoff-meta">
+        <label>Name <input type="text" id="signName" placeholder="Technician / Inspector name" /></label>
+        <label>Date <input type="date" id="signDate" /></label>
+      </div>
+      <p class="sign-hint">Tap the box to sign with your finger (or mouse)</p>
+      <div class="sig-preview-wrap" id="sigPreviewWrap">
+        <canvas id="sigPreview" width="600" height="120"></canvas>
+        <span class="sig-placeholder" id="sigPlaceholder">Tap to sign</span>
+      </div>
+      <button type="button" class="btn-secondary" id="clearSig">Clear signature</button>
+    </section>
+
+    <!-- Signature modal -->
+    <div id="sigModal" class="sig-modal" hidden>
+      <div class="sig-modal-inner">
+        <div class="sig-modal-header">
+          <span>Sign here</span>
+          <button type="button" id="sigDone" class="btn-primary sig-done-btn">Done</button>
+        </div>
+        <canvas id="sigPad" width="800" height="360"></canvas>
+        <div class="sig-modal-actions">
+          <button type="button" class="btn-secondary" id="sigClearPad">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <section class="actions">
+      <button type="button" class="btn-primary" id="exportPdf">Export to PDF</button>
+      <button type="button" class="btn-primary btn-excel" id="exportExcel">Export to Excel</button>
+      <button type="button" class="btn-secondary" id="resetAll">Reset Form</button>
+    </section>
+  </main>
+
+
+  <script src="app.js?v=5"></script>
+</body>
+</html>
