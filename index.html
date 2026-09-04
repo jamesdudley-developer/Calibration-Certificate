@@ -18,18 +18,18 @@
 <script src="calibration-sync.js"></script>
 <style>
   #login-gate{min-height:80vh;display:flex;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;}
-  #login-gate .box{background:#fff;border:1px solid #d7dbe0;border-radius:8px;padding:40px 32px;max-width:360px;width:100%;text-align:center;}
-  #login-gate h2{margin:0 0 8px;font-size:19px;color:#0f2744;}
-  #login-gate p{margin:0 0 28px;font-size:13px;color:#5b6570;}
-  #login-gate input{width:100%;padding:12px;border:1px solid #b9c0c8;border-radius:5px;font-size:14px;margin-bottom:18px;box-sizing:border-box;}
-  #login-gate button{width:100%;padding:13px;background:#0f2744;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;margin-top:4px;}
+  #login-gate .box{background:#fff;border:1px solid #d7dbe0;border-radius:8px;padding:28px 24px;max-width:340px;width:100%;text-align:center;}
+  #login-gate h2{margin:0 0 4px;font-size:17px;color:#0f2744;}
+  #login-gate p{margin:0 0 18px;font-size:13px;color:#5b6570;}
+  #login-gate input{width:100%;padding:10px;border:1px solid #b9c0c8;border-radius:5px;font-size:14px;margin-bottom:12px;box-sizing:border-box;}
+  #login-gate button{width:100%;padding:11px;background:#0f2744;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;}
   #login-gate button:disabled{background:#9aa6b1;}
-  #login-gate .toggle-mode{background:none;border:none;color:#0f2744;font-size:12px;cursor:pointer;margin-top:22px;padding:0;text-decoration:underline;width:auto;font-weight:400;}
+  #login-gate .toggle-mode{background:none;border:none;color:#0f2744;font-size:12px;cursor:pointer;margin-top:14px;padding:0;text-decoration:underline;width:auto;font-weight:400;}
   #login-msg{font-size:12px;margin-top:12px;color:#5b6570;}
   #login-msg.error{color:#cc0000;}
   #login-msg.success{color:#38761d;}
   #app-shell{display:none;}
-  #logout-bar{display:flex;align-items:center;gap:8px;font-size:11px;color:#fff;flex-shrink:0;}
+  #logout-bar{display:flex;align-items:center;gap:10px;font-size:11px;color:#fff;position:absolute;top:14px;right:14px;}
   #logout-bar button{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer;}
 </style>
 </head>
@@ -49,10 +49,6 @@
     <div class="header-top">
       <h1>Calibration Certificate</h1>
       <button type="button" id="installBtn" class="install-btn" hidden>Install</button>
-      <div id="logout-bar">
-        <span id="user-email"></span>
-        <button id="logout-btn">Log out</button>
-      </div>
     </div>
     <div class="header-meta">
       <label>Certificate No.
@@ -65,7 +61,11 @@
         </select>
       </label>
     </div>
-    </header>
+    <div id="logout-bar">
+    <span id="user-email"></span>
+    <button id="logout-btn">Log out</button>
+  </div>
+</header>
 
   <main id="app-shell">
     <!-- Device Details -->
@@ -263,7 +263,6 @@
     <!-- Actions -->
     <section class="actions">
       <button type="button" class="btn-primary" id="exportPdf">Export to PDF</button>
-        <button type="button" class="btn-primary" id="uploadDb">Upload to Database</button>
       <button type="button" class="btn-primary btn-excel" id="exportExcel">Export to Excel</button>
       <button type="button" class="btn-secondary" id="resetAll">Reset Form</button>
     </section>
@@ -324,6 +323,6 @@
 
   initAuth();
 </script>
-    <script src="app.js?v=5"></script>
+    <script src="app.js?v=6"></script>
 </body>
 </html>
