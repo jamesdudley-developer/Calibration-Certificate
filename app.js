@@ -1133,7 +1133,30 @@
 
     const cert = ($('certNo').value || '').trim() || (certDateStamp() + '-' + (($('instrumentId').value || '').trim() || 'Certificate'));
     const filename = `${cert}.pdf`;
-    doc.save(filename);
+    if (window.CalibrationSync) {
+    try {
+      const pdfBlob = doc.output('blob');
+      const resultRaw = ($('result').value || '').toUpperCase();
+      const resultMapped = resultRaw === 'FAILED' ? 'Failed' : 'Passed';
+      const intervalMatch = (($('calInterval').value || '').match(/\d+/) || [])[0];
+      window.CalibrationSync.save({
+        tagNumber: ($('instrumentId').value || '').trim(),
+        calibrationDate: $('calDate').value || new Date().toISOString().slice(0, 10),
+        result: resultMapped,
+        intervalMonths: intervalMatch ? parseInt(intervalMatch, 10) : 12,
+        technician: $('technician').value || null,
+        certificateNo: $('certNo').value || null,
+        manufacturer: $('manufacturer').value || null,
+        model: $('model').value || null,
+        serialNumber: $('serialNumber').value || null,
+        siteLocation: $('siteLocation').value || null,
+        pdfBlob: pdfBlob,
+      }).catch(err => console.warn('Calibration database save failed (will retry when online):', err));
+    } catch (err) {
+      console.warn('Could not queue calibration for database save:', err);
+    }
+  }
+  doc.save(filename);
   }
 
   function clearAllFields() {
