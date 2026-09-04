@@ -740,96 +740,107 @@
   // ---------- PDF Export ----------
 
   function exportExcel() {
-    if (typeof XLSX === 'undefined') {
-      alert('Excel library failed to load. Check your internet connection and try again.');
-      return;
-    }
-
-    const wb = XLSX.utils.book_new();
-    const unit = unitLabel();
-
-    // Summary sheet
-    const summary = [
-      ['Calibration Certificate'],
-      ['Certificate No', $('certNo').value || ''],
-      ['Result', $('result').value || ''],
-      [],
-      ['Device Details'],
-      ['Instrument ID', $('instrumentId').value || ''],
-      ['Process ID', $('processId').value || ''],
-      ['Serial Number', ($('serialNumber') && $('serialNumber').value) || ''],
-      ['Manufacturer', $('manufacturer').value || ''],
-      ['Model', $('model').value || ''],
-      ['Extended Model', ($('extendedModel') && $('extendedModel').value) || ''],
-      [],
-      ['Calibration Details'],
-      ['Calibration Date', $('calDate').value || ''],
-      ['Calibration Interval', $('calInterval').value || ''],
-      ['Technician', $('technician').value || ''],
-      ['Max Error Limit (%)', $('maxErrorLimit').value || ''],
-      ['Service Reason', $('serviceReason').value || ''],
-      ['Adjustment Limit (%)', $('adjLimit').value || ''],
-      ['Work Order', $('workOrder').value || ''],
-      ['Critical Service', $('criticalService').value || ''],
-      ['Site Location', $('siteLocation').value || ''],
-      ['Sensor Type', $('sensorType').value || ''],
-      ['Ambient Temperature', $('ambientTemp').value || ''],
-      ['Sensor Limits', $('sensorLimits').value || ''],
-      [],
-      ['Range & Span'],
-      ['Unit', unit],
-      ['LRV', $('lrv').value || ''],
-      ['URV', $('urv').value || ''],
-      ['Span', fmt(getSpan(), 2)],
-      [],
-      ['Comments', ($('comments') && $('comments').value) || ''],
-      [],
-      ['Sign Off'],
-      ['Name', ($('signName') && $('signName').value) || ''],
-      ['Date', ($('signDate') && $('signDate').value) || '']
-    ];
-    const wsSummary = XLSX.utils.aoa_to_sheet(summary);
-    wsSummary['!cols'] = [{ wch: 24 }, { wch: 36 }];
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
-
-    // Equipment
-    const equipRows = [['Device', 'Serial', 'Next Calibration Due']];
-    document.querySelectorAll('#equipBody tr').forEach(tr => {
-      const inputs = tr.querySelectorAll('input');
-      equipRows.push([
-        inputs[0] ? inputs[0].value : '',
-        inputs[1] ? inputs[1].value : '',
-        inputs[2] ? inputs[2].value : ''
-      ]);
-    });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(equipRows), 'Equipment');
-
-    // AS FOUND / AS LEFT helper
-    function sheetFromTable(tbodyId) {
-      const rows = [currentTableHeaders()];
-      document.querySelectorAll('#' + tbodyId + ' tr').forEach(tr => {
-        rows.push([
-          tr.querySelector('.point-num').value,
-          tr.querySelector('.process-val').value,
-          tr.querySelector('.target-ma').value,
-          tr.querySelector('.measured-ma').value,
-          tr.querySelector('.ma-error').value,
-          tr.querySelector('.pct-error').value
-        ]);
-      });
-      return XLSX.utils.aoa_to_sheet(rows);
-    }
-    XLSX.utils.book_append_sheet(wb, sheetFromTable('asFoundBody'), 'AS FOUND');
-    XLSX.utils.book_append_sheet(wb, sheetFromTable('asLeftBody'), 'AS LEFT');
-
-    const cert = ($('certNo').value || '').trim() || (certDateStamp() + '-' + (($('instrumentId').value || '').trim() || 'Certificate'));
-    XLSX.writeFile(wb, cert + '.xlsx');
+  if (typeof XLSX === 'undefined') {
+    alert('Excel library failed to load. Check your internet connection and try again.');
+    return;
   }
 
-  async function exportPDF() {
+  const wb = XLSX.utils.book_new();
+  const unit = unitLabel();
+
+  const rows = [
+    ['Calibration Certificate'],
+    ['Certificate No', $('certNo').value || ''],
+    ['Result', $('result').value || ''],
+    [],
+    ['Device Details'],
+    ['Instrument ID', $('instrumentId').value || ''],
+    ['Process ID', $('processId').value || ''],
+    ['Serial Number', ($('serialNumber') && $('serialNumber').value) || ''],
+    ['Manufacturer', $('manufacturer').value || ''],
+    ['Model', $('model').value || ''],
+    ['Extended Model', ($('extendedModel') && $('extendedModel').value) || ''],
+    [],
+    ['Calibration Details'],
+    ['Calibration Date', $('calDate').value || ''],
+    ['Calibration Interval', $('calInterval').value || ''],
+    ['Technician', $('technician').value || ''],
+    ['Max Error Limit (%)', $('maxErrorLimit').value || ''],
+    ['Service Reason', $('serviceReason').value || ''],
+    ['Adjustment Limit (%)', $('adjLimit').value || ''],
+    ['Work Order', $('workOrder').value || ''],
+    ['Critical Service', $('criticalService').value || ''],
+    ['Site Location', $('siteLocation').value || ''],
+    ['Sensor Type', $('sensorType').value || ''],
+    ['Ambient Temperature', $('ambientTemp').value || ''],
+    ['Sensor Limits', $('sensorLimits').value || ''],
+    [],
+    ['Range & Span'],
+    ['Unit', unit],
+    ['LRV', $('lrv').value || ''],
+    ['URV', $('urv').value || ''],
+    ['Span', fmt(getSpan(), 2)],
+    [],
+    ['Calibration Equipment'],
+    ['Device', 'Serial', 'Next Calibration Due'],
+  ];
+
+  document.querySelectorAll('#equipBody tr').forEach(tr => {
+    const inputs = tr.querySelectorAll('input');
+    rows.push([
+      inputs[0] ? inputs[0].value : '',
+      inputs[1] ? inputs[1].value : '',
+      inputs[2] ? inputs[2].value : ''
+    ]);
+  });
+
+  rows.push([]);
+  rows.push(['AS FOUND']);
+  rows.push(currentTableHeaders());
+  document.querySelectorAll('#asFoundBody tr').forEach(tr => {
+    rows.push([
+      tr.querySelector('.point-num').value,
+      tr.querySelector('.process-val').value,
+      tr.querySelector('.target-ma').value,
+      tr.querySelector('.measured-ma').value,
+      tr.querySelector('.ma-error').value,
+      tr.querySelector('.pct-error').value
+    ]);
+  });
+
+  rows.push([]);
+  rows.push(['AS LEFT']);
+  rows.push(currentTableHeaders());
+  document.querySelectorAll('#asLeftBody tr').forEach(tr => {
+    rows.push([
+      tr.querySelector('.point-num').value,
+      tr.querySelector('.process-val').value,
+      tr.querySelector('.target-ma').value,
+      tr.querySelector('.measured-ma').value,
+      tr.querySelector('.ma-error').value,
+      tr.querySelector('.pct-error').value
+    ]);
+  });
+
+  rows.push([]);
+  rows.push(['Comments', ($('comments') && $('comments').value) || '']);
+  rows.push([]);
+  rows.push(['Sign Off']);
+  rows.push(['Name', ($('signName') && $('signName').value) || '']);
+  rows.push(['Date', ($('signDate') && $('signDate').value) || '']);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 24 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 14 }, { wch: 14 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Certificate');
+
+  const cert = ($('certNo').value || '').trim() || (certDateStamp() + '-' + (($('instrumentId').value || '').trim() || 'Certificate'));
+  XLSX.writeFile(wb, cert + '.xlsx');
+}
+
+async function buildCertificateDoc() {
     if (!validateDates()) {
       const proceed = confirm('Some dates look invalid (highlighted in red). Export anyway?');
-      if (!proceed) return;
+      if (!proceed) return null;
     }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -1130,8 +1141,13 @@
       doc.setTextColor(120);
       doc.text(`Page ${i} of ${pageCount}  •  Generated ${new Date().toLocaleString()}`, pageW / 2, 290, { align: 'center' });
     }
+  return doc;
+}
 
-    const cert = ($('certNo').value || '').trim() || (certDateStamp() + '-' + (($('instrumentId').value || '').trim() || 'Certificate'));
+async function exportPDF() {
+  const doc = await buildCertificateDoc();
+  if (!doc) return;
+  const cert = ($('certNo').value || '').trim() || (certDateStamp() + '-' + (($('instrumentId').value || '').trim() || 'Certificate'));
     const filename = `${cert}.pdf`;
     if (window.CalibrationSync) {
     try {
@@ -1159,7 +1175,49 @@
   doc.save(filename);
   }
 
-  function clearAllFields() {
+  
+
+
+async function uploadToDatabase() {
+  const btn = $('uploadDb');
+  if (!window.CalibrationSync) {
+    alert('Database sync is not available on this page.');
+    return;
+  }
+  const doc = await buildCertificateDoc();
+  if (!doc) return;
+  const origLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+  try {
+    const pdfBlob = doc.output('blob');
+    const resultRaw = ($('result').value || '').toUpperCase();
+    const resultMapped = resultRaw === 'FAILED' ? 'Failed' : 'Passed';
+    const intervalMatch = (($('calInterval').value || '').match(/\d+/) || [])[0];
+    await window.CalibrationSync.save({
+      tagNumber: ($('instrumentId').value || '').trim(),
+      calibrationDate: $('calDate').value || new Date().toISOString().slice(0, 10),
+      result: resultMapped,
+      intervalMonths: intervalMatch ? parseInt(intervalMatch, 10) : 12,
+      technician: $('technician').value || null,
+      certificateNo: $('certNo').value || null,
+      manufacturer: $('manufacturer').value || null,
+      model: $('model').value || null,
+      serialNumber: $('serialNumber').value || null,
+      siteLocation: $('siteLocation').value || null,
+      pdfBlob: pdfBlob,
+    });
+    btn.textContent = 'Uploaded ✓';
+    setTimeout(() => { btn.textContent = origLabel; btn.disabled = false; }, 2500);
+  } catch (err) {
+    console.warn('Upload to database failed:', err);
+    alert('Upload failed: ' + (err.message || err) + '\n\nIt has been queued locally and will retry automatically when possible.');
+    btn.textContent = origLabel;
+    btn.disabled = false;
+  }
+}
+
+function clearAllFields() {
     // text/number/date/select inputs inside main + header (except result keeps PASSED)
     document.querySelectorAll('main input, main textarea, header input').forEach(el => {
       if (el.type === 'checkbox' || el.type === 'radio') return;
@@ -1292,6 +1350,7 @@
     $('addEquip').addEventListener('click', () => addEquipRow());
     $('exportPdf').addEventListener('click', exportPDF);
     if ($('exportExcel')) $('exportExcel').addEventListener('click', exportExcel);
+  if ($('uploadDb')) $('uploadDb').addEventListener('click', uploadToDatabase);
 
     $('resetAll').addEventListener('click', () => {
       if (confirm('Clear all fields and reset the form?')) {
