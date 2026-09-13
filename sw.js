@@ -1,4 +1,4 @@
-const CACHE = 'cal-app-v9';
+const CACHE = 'cal-app-v10';
 const ASSETS = [
       './',
       './index.html',
