@@ -64,6 +64,7 @@
           <option value="FAILED">FAILED</option>
         </select>
       </label>
+      <button type="button" id="loadPrevBtn" class="btn-secondary" style="align-self:flex-end;">Load Previous Certificate</button>
     </div>
     </header>
 
@@ -257,6 +258,17 @@
         <div class="sig-modal-actions">
           <button type="button" class="btn-secondary" id="sigClearPad">Clear</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Load previous certificate modal -->
+    <div id="loadPrevModal" class="sig-modal" hidden>
+      <div class="sig-modal-inner">
+        <div class="sig-modal-header">
+          <span>Load previous certificate</span>
+          <button type="button" id="loadPrevClose" class="btn-secondary sig-done-btn">Close</button>
+        </div>
+        <div id="loadPrevList" style="padding:16px;max-height:60vh;overflow:auto;"></div>
       </div>
     </div>
 

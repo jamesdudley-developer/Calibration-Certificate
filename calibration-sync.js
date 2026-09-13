@@ -66,6 +66,8 @@ function uuid() {
  * @param {string} [record.model]          - used only if a new instrument gets created
  * @param {string} [record.serialNumber]   - used only if a new instrument gets created
  * @param {string} [record.siteLocation]   - used only if a new instrument gets created (stored as area)
+ * @param {Object} [record.formData]       - full snapshot of every form field, so this exact
+ *                                            certificate can be reopened and edited later
  * @returns {Promise<string>} localId of the saved record
  */
 async function saveCalibration(record) {
@@ -82,6 +84,7 @@ async function saveCalibration(record) {
     model: record.model || null,
     serialNumber: record.serialNumber || null,
     siteLocation: record.siteLocation || null,
+    formData: record.formData || null,
     pdfBlob: record.pdfBlob,          // stored as a Blob directly — IndexedDB supports this natively
     synced: false,
     createdAt: new Date().toISOString(),
@@ -193,6 +196,7 @@ async function syncPending(supabaseClient) {
           certificate_no: rec.certificateNo,
           pdf_path: path,
           source_file: `local-${rec.localId}`,
+          form_data: rec.formData || null,
         });
       if (insertErr) throw insertErr;
 
@@ -247,11 +251,45 @@ function initCalibrationSync(supabaseClient) {
   if (navigator.onLine) syncPending();
 }
 
+/**
+ * Fetch every calibration_events row for a given tag directly from
+ * Supabase (not the local offline queue) — used by "Load Previous
+ * Certificate" to reopen an exact past certificate, including ones
+ * saved from other devices/sessions.
+ *
+ * Returns rows ordered most-recent-first: { id, calibration_date, result,
+ * certificate_no, technician, form_data }. Rows saved before the
+ * form_data column existed will have form_data: null.
+ */
+async function listRemoteForTag(tagNumber) {
+  const supabase = window.__calSyncSupabase;
+  if (!supabase || !tagNumber) return [];
+
+  const { data: inst, error: instErr } = await supabase
+    .from("instruments")
+    .select("id")
+    .eq("tag_number", tagNumber)
+    .maybeSingle();
+  if (instErr || !inst) return [];
+
+  const { data: events, error: evErr } = await supabase
+    .from("calibration_events")
+    .select("id, calibration_date, result, certificate_no, technician, form_data")
+    .eq("instrument_id", inst.id)
+    .order("calibration_date", { ascending: false });
+  if (evErr) {
+    console.warn("listRemoteForTag failed:", evErr.message || evErr);
+    return [];
+  }
+  return events || [];
+}
+
 // Expose as a small global namespace so it drops into a vanilla-JS PWA
 // without a bundler/module system.
 window.CalibrationSync = {
   init: initCalibrationSync,
   save: saveCalibration,
   listLocal: listLocalCalibrations,
+  listRemoteForTag,
   syncPending,
 };

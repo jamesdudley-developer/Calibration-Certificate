@@ -642,6 +642,227 @@
     $('equipBody').appendChild(tr);
   }
 
+  // ---------- Full form snapshot (save / reopen a past certificate) ----------
+
+  function collectFormData() {
+    const equipment = [];
+    document.querySelectorAll('#equipBody tr').forEach(tr => {
+      const inputs = tr.querySelectorAll('input');
+      equipment.push({
+        device: inputs[0] ? inputs[0].value : '',
+        serial: inputs[1] ? inputs[1].value : '',
+        due: inputs[2] ? inputs[2].value : '',
+      });
+    });
+
+    function collectRows(tbodyId) {
+      const out = [];
+      document.querySelectorAll(`#${tbodyId} tr`).forEach(tr => {
+        const isSwitchRow = tr.dataset.mode === 'switch';
+        out.push({
+          point: tr.querySelector('.point-num').value,
+          value: tr.querySelector('.process-val').value,
+          target: tr.querySelector('.target-ma').value,
+          measured: tr.querySelector('.measured-ma').value,
+          notes: isSwitchRow ? (tr.querySelector('.pct-error').value || '') : ''
+        });
+      });
+      return out;
+    }
+
+    return {
+      certNo: $('certNo') ? $('certNo').value : '',
+      result: $('result') ? $('result').value : '',
+      instrumentId: $('instrumentId') ? $('instrumentId').value : '',
+      processId: $('processId') ? $('processId').value : '',
+      serialNumber: $('serialNumber') ? $('serialNumber').value : '',
+      manufacturer: $('manufacturer') ? $('manufacturer').value : '',
+      model: $('model') ? $('model').value : '',
+      extendedModel: $('extendedModel') ? $('extendedModel').value : '',
+      calDate: $('calDate') ? $('calDate').value : '',
+      calInterval: $('calInterval') ? $('calInterval').value : '',
+      technician: $('technician') ? $('technician').value : '',
+      maxErrorLimit: $('maxErrorLimit') ? $('maxErrorLimit').value : '',
+      serviceReason: $('serviceReason') ? $('serviceReason').value : '',
+      adjLimit: $('adjLimit') ? $('adjLimit').value : '',
+      workOrder: $('workOrder') ? $('workOrder').value : '',
+      criticalService: $('criticalService') ? $('criticalService').value : '',
+      siteLocation: $('siteLocation') ? $('siteLocation').value : '',
+      sensorType: $('sensorType') ? $('sensorType').value : '',
+      ambientTemp: $('ambientTemp') ? $('ambientTemp').value : '',
+      sensorLimits: $('sensorLimits') ? $('sensorLimits').value : '',
+      unit: $('unitSelect') ? $('unitSelect').value : '',
+      lrv: $('lrv') ? $('lrv').value : '',
+      urv: $('urv') ? $('urv').value : '',
+      sqrtExtraction: !!($('sqrtExtraction') && $('sqrtExtraction').checked),
+      equipment,
+      asFound: collectRows('asFoundBody'),
+      asLeft: collectRows('asLeftBody'),
+      comments: $('comments') ? $('comments').value : '',
+      signName: $('signName') ? $('signName').value : '',
+      signDate: $('signDate') ? $('signDate').value : '',
+      signature: window.__getSignatureDataUrl ? window.__getSignatureDataUrl() : null,
+    };
+  }
+
+  function loadRowsFromData(tbodyId, type, rowsData) {
+    const body = $(tbodyId);
+    body.innerHTML = '';
+    const switchMode = isSwitchUnit();
+    (rowsData || []).forEach(rd => {
+      const row = createRow(type, {
+        point: rd.point,
+        value: rd.value,
+        measured: switchMode ? '' : rd.measured
+      });
+      if (switchMode) {
+        const targetSel = row.querySelector('.target-ma');
+        const measSel = row.querySelector('.measured-ma');
+        const notesEl = row.querySelector('.pct-error');
+        if (targetSel) targetSel.value = rd.target || '';
+        if (measSel) measSel.value = rd.measured || '';
+        if (notesEl) notesEl.value = rd.notes || '';
+      }
+      body.appendChild(row);
+    });
+    if (!(rowsData || []).length) {
+      // Keep at least one blank row rather than leaving the table empty.
+      body.appendChild(createRow(type, { point: 1, value: '', measured: '' }));
+    }
+  }
+
+  function applyFormData(data) {
+    if (!data) return;
+    const setVal = (id, v) => {
+      const el = $(id);
+      if (el && v !== undefined && v !== null) el.value = v;
+    };
+
+    setVal('certNo', data.certNo);
+    setVal('result', data.result);
+    setVal('instrumentId', data.instrumentId);
+    setVal('processId', data.processId);
+    setVal('serialNumber', data.serialNumber);
+    setVal('manufacturer', data.manufacturer);
+    setVal('model', data.model);
+    setVal('extendedModel', data.extendedModel);
+    setVal('calDate', data.calDate);
+    setVal('calInterval', data.calInterval);
+    setVal('technician', data.technician);
+    setVal('maxErrorLimit', data.maxErrorLimit);
+    setVal('serviceReason', data.serviceReason);
+    setVal('adjLimit', data.adjLimit);
+    setVal('workOrder', data.workOrder);
+    setVal('criticalService', data.criticalService);
+    setVal('siteLocation', data.siteLocation);
+    setVal('sensorType', data.sensorType);
+    setVal('ambientTemp', data.ambientTemp);
+    setVal('sensorLimits', data.sensorLimits);
+    setVal('unitSelect', data.unit);
+    setVal('lrv', data.lrv);
+    setVal('urv', data.urv);
+    if ($('sqrtExtraction')) $('sqrtExtraction').checked = !!data.sqrtExtraction;
+
+    const equipBody = $('equipBody');
+    equipBody.innerHTML = '';
+    (data.equipment || []).forEach(eq => addEquipRow(eq.device, eq.serial, eq.due));
+    if (!(data.equipment || []).length) {
+      addEquipRow();
+      addEquipRow();
+    }
+
+    // Unit/switch mode must be applied before rebuilding the test-point
+    // rows, since createRow()'s analog-vs-switch shape depends on it.
+    updateSpan();
+
+    loadRowsFromData('asFoundBody', 'af', data.asFound);
+    loadRowsFromData('asLeftBody', 'al', data.asLeft);
+    document.querySelectorAll('#asFoundBody tr, #asLeftBody tr').forEach(recalcRow);
+
+    setVal('comments', data.comments);
+    setVal('signName', data.signName);
+    setVal('signDate', data.signDate);
+
+    if (data.signature && window.__setSignatureDataUrl) {
+      window.__setSignatureDataUrl(data.signature);
+    }
+
+    updateCertNo();
+    updateChart();
+    validateDates();
+  }
+
+  async function openLoadPreviousModal() {
+    const tag = ($('instrumentId').value || '').trim();
+    if (!tag) {
+      alert('Enter an Instrument ID (tag) first.');
+      return;
+    }
+    if (!window.CalibrationSync || !window.CalibrationSync.listRemoteForTag) {
+      alert('Loading previous certificates is not available right now.');
+      return;
+    }
+    const btn = $('loadPrevBtn');
+    const origLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Looking up…';
+    let list = [];
+    try {
+      list = await window.CalibrationSync.listRemoteForTag(tag);
+    } catch (err) {
+      alert('Could not look up previous certificates: ' + (err.message || err));
+    }
+    btn.disabled = false;
+    btn.textContent = origLabel;
+
+    if (!list.length) {
+      alert(`No previous certificates found for ${tag}.`);
+      return;
+    }
+    renderLoadPreviousList(list);
+  }
+
+  function renderLoadPreviousList(list) {
+    const container = $('loadPrevList');
+    container.innerHTML = list.map((rec, idx) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;${idx === 0 ? '' : 'border-top:1px solid #ddd;'}">
+        <div>
+          <strong>${rec.calibration_date || '—'}</strong>
+          <span style="margin-left:8px;">${rec.result || ''}</span>
+          <span style="margin-left:8px;color:#666;">${rec.certificate_no ? 'Cert #' + rec.certificate_no : ''}</span>
+          ${!rec.form_data ? '<div style="font-size:11px;color:#b45f06;margin-top:2px;">No detailed data saved — only summary fields will load.</div>' : ''}
+        </div>
+        <button type="button" class="btn-primary load-prev-pick" data-idx="${idx}" style="padding:6px 14px;">Load</button>
+      </div>
+    `).join('');
+
+    container.querySelectorAll('.load-prev-pick').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-idx'), 10);
+        const rec = list[idx];
+        if (rec.form_data) {
+          applyFormData(rec.form_data);
+        } else {
+          // Older certificate saved before full-detail snapshots existed —
+          // apply what we do have rather than nothing at all.
+          applyFormData({
+            calDate: rec.calibration_date,
+            result: rec.result,
+            certNo: rec.certificate_no,
+            technician: rec.technician,
+          });
+        }
+        closeLoadPrevModal();
+      });
+    });
+
+    $('loadPrevModal').hidden = false;
+  }
+
+  function closeLoadPrevModal() {
+    $('loadPrevModal').hidden = true;
+  }
+
   // ---------- PDF Export ----------
 
   // ---------- Signature pad ----------
@@ -735,6 +956,17 @@
     // expose for reset
     window.__clearSignature = clearPad;
     window.__getSignatureDataUrl = () => hasSignature ? pad.toDataURL('image/png') : null;
+    window.__setSignatureDataUrl = (dataUrl) => {
+      if (!dataUrl) return;
+      const img = new Image();
+      img.onload = () => {
+        ctx.clearRect(0, 0, pad.width, pad.height);
+        ctx.drawImage(img, 0, 0, pad.width, pad.height);
+        hasSignature = true;
+        copyToPreview();
+      };
+      img.src = dataUrl;
+    };
   }
 
   // ---------- PDF Export ----------
@@ -1166,6 +1398,7 @@ async function exportPDF() {
         model: $('model').value || null,
         serialNumber: $('serialNumber').value || null,
         siteLocation: $('siteLocation').value || null,
+        formData: collectFormData(),
         pdfBlob: pdfBlob,
       }).catch(err => console.warn('Calibration database save failed (will retry when online):', err));
     } catch (err) {
@@ -1205,6 +1438,7 @@ async function uploadToDatabase() {
       model: $('model').value || null,
       serialNumber: $('serialNumber').value || null,
       siteLocation: $('siteLocation').value || null,
+      formData: collectFormData(),
       pdfBlob: pdfBlob,
     });
     btn.textContent = 'Uploaded ✓';
@@ -1381,6 +1615,8 @@ function clearAllFields() {
     $('exportPdf').addEventListener('click', exportPDF);
     if ($('exportExcel')) $('exportExcel').addEventListener('click', exportExcel);
   if ($('uploadDb')) $('uploadDb').addEventListener('click', uploadToDatabase);
+    if ($('loadPrevBtn')) $('loadPrevBtn').addEventListener('click', openLoadPreviousModal);
+    if ($('loadPrevClose')) $('loadPrevClose').addEventListener('click', closeLoadPrevModal);
 
     $('resetAll').addEventListener('click', () => {
       if (confirm('Clear all fields and reset the form?')) {
