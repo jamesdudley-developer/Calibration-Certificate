@@ -787,7 +787,6 @@
       window.__setSignatureDataUrl(data.signature);
     }
 
-    updateCertNo();
     updateChart();
     validateDates();
   }
