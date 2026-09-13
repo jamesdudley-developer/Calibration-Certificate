@@ -276,7 +276,8 @@ async function listRemoteForTag(tagNumber) {
     .from("calibration_events")
     .select("id, calibration_date, result, certificate_no, technician, form_data")
     .eq("instrument_id", inst.id)
-    .order("calibration_date", { ascending: false });
+        .order("calibration_date", { ascending: false })
+      .order("created_at", { ascending: false });
   if (evErr) {
     console.warn("listRemoteForTag failed:", evErr.message || evErr);
     return [];
