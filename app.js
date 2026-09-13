@@ -1291,11 +1291,41 @@ function clearAllFields() {
     }
   }
 
+  // ---------- Prefill from Tracker link ----------
+  // The Tracker's "+ New Calibration" button links here with the
+  // instrument's known details as URL query params (?tag=...&manufacturer=...
+  // etc). Nothing else on the page depends on this running — if there are
+  // no query params, this is a no-op.
+  function applyPrefillFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    if (![...params.keys()].length) return;
+
+    const directMap = {
+      tag: 'instrumentId',
+      manufacturer: 'manufacturer',
+      model: 'model',
+      serial: 'serialNumber',
+    };
+    Object.keys(directMap).forEach(key => {
+      const val = params.get(key);
+      const el = $(directMap[key]);
+      if (val && el) el.value = val;
+    });
+
+    const interval = params.get('interval');
+    if (interval && $('calInterval')) {
+      $('calInterval').value = /month/i.test(interval) ? interval : `${interval} months`;
+    }
+    // Note: the Tracker also sends "area", but this form has no per-instrument
+    // area field (only the certificate-wide "Site Location"), so it's ignored.
+  }
+
   // ---------- Init ----------
   function init() {
     const today = new Date().toISOString().slice(0, 10);
     if ($('calDate')) $('calDate').value = '';
     if ($('signDate')) $('signDate').value = today;
+    applyPrefillFromQuery();
 
     // Listeners first
     $('lrv').addEventListener('input', updateSpan);
