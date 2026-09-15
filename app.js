@@ -312,7 +312,17 @@
     return todayYYMMDD();
   }
 
-  function updateCertNo() {
+  // Certificates always display dates as dd/mm/yyyy, regardless of the
+    // underlying yyyy-mm-dd value from the date inputs. The certificate
+    // number's own yymmdd date stamp is unrelated and untouched by this.
+    function formatDateDMY(iso) {
+          if (!iso) return iso;
+          const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+          if (!m) return iso;
+          return `${m[3]}/${m[2]}/${m[1]}`;
+    }
+  
+    function updateCertNo() {
     const idEl = $('instrumentId');
     const certEl = $('certNo');
     if (!certEl) return;
@@ -1124,7 +1134,7 @@ async function buildCertificateDoc() {
     ]);
 
     borderedPairs('Calibration Details', [
-      ['Calibration Date', $('calDate').value, 'Calibration Interval', $('calInterval').value],
+      ['Calibration Date', formatDateDMY($('calDate').value), 'Calibration Interval', $('calInterval').value],
       ['Technician', $('technician').value, 'Max Error Limit (%)', $('maxErrorLimit').value],
       ['Service Reason', $('serviceReason').value, 'Adjustment Limit (%)', $('adjLimit').value],
       ['Work Order', $('workOrder').value, 'Critical Service', $('criticalService').value],
@@ -1152,7 +1162,7 @@ async function buildCertificateDoc() {
       equipData.push([
         inputs[0].value || '—',
         inputs[1].value || '—',
-        inputs[2].value || '—'
+formatDateDMY(inputs[2].value) || '-'
       ]);
     });
 
@@ -1326,7 +1336,7 @@ async function buildCertificateDoc() {
       startY: y,
       head: false,
       body: [
-        ['Name', $('signName').value || '—', 'Date', $('signDate').value || '—']
+        ['Name', $('signName').value || '—', 'Date', formatDateDMY($('signDate').value) || '—']
       ],
       theme: 'grid',
       styles: { fontSize: 9, cellPadding: 2, lineColor: [180, 180, 180], lineWidth: 0.2 },
@@ -1637,5 +1647,14 @@ function clearAllFields() {
     }
   }
 
+  // Prevent accidental value changes when the mouse wheel scrolls over a
+    // focused AS FOUND / AS LEFT number field -- blur it immediately so the
+    // page scrolls normally instead of the number changing.
+    document.addEventListener('wheel', (e) => {
+          if (e.target && e.target.matches && e.target.matches('#asFoundBody input[type="number"], #asLeftBody input[type="number"]')) {
+                  e.target.blur();
+          }
+    }, { passive: true });
+  
   document.addEventListener('DOMContentLoaded', init);
 })();
