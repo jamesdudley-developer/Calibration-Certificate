@@ -84,6 +84,7 @@ async function saveCalibration(record) {
     model: record.model || null,
     serialNumber: record.serialNumber || null,
     siteLocation: record.siteLocation || null,
+          isDraft: !!record.isDraft,
     formData: record.formData || null,
     pdfBlob: record.pdfBlob,          // stored as a Blob directly — IndexedDB supports this natively
     synced: false,
@@ -177,19 +178,22 @@ async function syncPending(supabaseClient) {
         inst = created;
       }
 
-      // 2. Upload the PDF to Storage.
-      const path = `${rec.tagNumber}/${rec.calibrationDate}_${rec.certificateNo || rec.localId}.pdf`;
-      const { error: uploadErr } = await supabase.storage
-        .from(CERTIFICATES_BUCKET)
-        .upload(path, rec.pdfBlob, { contentType: "application/pdf", upsert: true });
-      if (uploadErr) throw uploadErr;
+// 2. Upload the PDF to Storage (skipped for drafts — no PDF yet).
+            let path = null;
+            if (!rec.isDraft) {
+                      path = `${rec.tagNumber}/${rec.calibrationDate}_${rec.certificateNo || rec.localId}.pdf`;
+                      const { error: uploadErr } = await supabase.storage
+                        .from(CERTIFICATES_BUCKET)
+                        .upload(path, rec.pdfBlob, { contentType: "application/pdf", upsert: true });
+                      if (uploadErr) throw uploadErr;
+            }
 
       // 3. Insert the calibration_events row.
       const { error: insertErr } = await supabase
         .from("calibration_events")
         .insert({
           instrument_id: inst.id,
-          calibration_date: rec.calibrationDate,
+                    calibration_date: rec.calibrationDate || null,
           result: rec.result,
           interval_months: rec.intervalMonths,
           technician: rec.technician,
@@ -197,6 +201,7 @@ async function syncPending(supabaseClient) {
           pdf_path: path,
           source_file: `local-${rec.localId}`,
           form_data: rec.formData || null,
+                    is_draft: !!rec.isDraft,
         });
       if (insertErr) throw insertErr;
 
