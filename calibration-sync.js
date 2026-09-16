@@ -287,6 +287,49 @@ async function listRemoteForTag(tagNumber) {
     return [];
   }
   return events || [];
+
+  /**
+   * Fetch every draft calibration (is_draft = true) across all instruments,
+    * most-recent-first — used by the Certificate app's "My Drafts" list so a
+     * partially-filled certificate can be resumed later, on any device.
+      */
+  async function listDrafts() {
+      const supabase = window.__calSyncSupabase;
+      if (!supabase) return [];
+
+      const { data, error } = await supabase
+        .from("calibration_events")
+        .select("id, calibration_date, form_data, created_at, instruments(tag_number)")
+        .eq("is_draft", true)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+            console.warn("listDrafts failed:", error.message || error);
+            return [];
+      }
+      return (data || []).map(r => ({
+            id: r.id,
+            tagNumber: r.instruments ? r.instruments.tag_number : null,
+            calibrationDate: r.calibration_date,
+            formData: r.form_data,
+            createdAt: r.created_at,
+      }));
+  }
+
+  /**
+   * Delete a draft row once it has been finalized into a real certificate
+    * (or discarded by the user). Only ever deletes rows still marked as drafts.
+     */
+  async function deleteDraft(id) {
+      const supabase = window.__calSyncSupabase;
+      if (!supabase || !id) return;
+      const { error } = await supabase
+        .from("calibration_events")
+        .delete()
+        .eq("id", id)
+        .eq("is_draft", true);
+      if (error) console.warn("deleteDraft failed:", error.message || error);
+  }
 }
 
 // Expose as a small global namespace so it drops into a vanilla-JS PWA
@@ -296,5 +339,7 @@ window.CalibrationSync = {
   save: saveCalibration,
   listLocal: listLocalCalibrations,
   listRemoteForTag,
+    listDrafts,
+    deleteDraft,
   syncPending,
 };
