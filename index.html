@@ -65,6 +65,7 @@
         </select>
       </label>
       <button type="button" id="loadPrevBtn" class="btn-secondary" style="align-self:flex-end;">Load Previous Certificate</button>
+      <button type="button" id="myDraftsBtn" class="btn-secondary" style="align-self:flex-end;">My Drafts</button>button>
     </div>
     </header>
 
@@ -271,11 +272,22 @@
         <div id="loadPrevList" style="padding:16px;max-height:60vh;overflow:auto;"></div>
       </div>
     </div>
-
+    <!-- My Drafts modal -->
+    <div id="myDraftsModal" class="sig-modal" hidden>
+      <div class="sig-modal-inner">
+        <div class="sig-modal-header">
+          <span>My drafts</span>
+          <button type="button" id="myDraftsClose" class="btn-secondary sig-done-btn">Close</button>
+        </div>
+        <div id="myDraftsList" style="padding:16px;max-height:60vh;overflow:auto;"></div>
+      </div>
+    </div>
+  
     <!-- Actions -->
     <section class="actions">
       <button type="button" class="btn-primary" id="exportPdf">Export to PDF</button>
         <button type="button" class="btn-primary" id="uploadDb">Upload to Database</button>
+      <button type="button" class="btn-secondary" id="saveDraftBtn">Save Draft</button>
       <button type="button" class="btn-primary btn-excel" id="exportExcel">Export to Excel</button>
       <button type="button" class="btn-secondary" id="resetAll">Reset Form</button>
     </section>
