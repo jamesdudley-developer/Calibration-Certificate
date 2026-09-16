@@ -872,6 +872,125 @@
     $('loadPrevModal').hidden = true;
   }
 
+  // ---------- Save Draft / My Drafts ----------
+  async function saveDraft() {
+      const tag = ($('instrumentId').value || '').trim();
+      if (!tag) {
+            alert('Enter an Instrument ID (tag) before saving a draft.');
+            return;
+      }
+      if (!window.CalibrationSync) {
+            alert('Database sync is not available on this page.');
+            return;
+      }
+      const btn = $('saveDraftBtn');
+      const origLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Saving draft…';
+      try {
+            const resultRaw = ($('result').value || '').toUpperCase();
+            const resultMapped = resultRaw === 'FAILED' ? 'Failed' : 'Passed';
+            const intervalMatch = (($('calInterval').value || '').match(/\d+/) || [])[0];
+            await window.CalibrationSync.save({
+                    tagNumber: tag,
+                    calibrationDate: $('calDate').value || null,
+                    result: resultMapped,
+                    intervalMonths: intervalMatch ? parseInt(intervalMatch, 10) : null,
+                    technician: $('technician').value || null,
+                    certificateNo: $('certNo').value || null,
+                    manufacturer: $('manufacturer').value || null,
+                    model: $('model').value || null,
+                    serialNumber: $('serialNumber').value || null,
+                    siteLocation: $('siteLocation').value || null,
+                    formData: collectFormData(),
+                    pdfBlob: null,
+                    isDraft: true,
+            });
+            btn.textContent = 'Draft saved ✓';
+      } catch (err) {
+            console.warn('Save draft failed:', err);
+            alert('Save draft failed: ' + (err.message || err));
+            btn.textContent = origLabel;
+      } finally {
+            setTimeout(() => { btn.textContent = origLabel; btn.disabled = false; }, 2000);
+      }
+  }
+
+  async function openMyDraftsModal() {
+      if (!window.CalibrationSync || !window.CalibrationSync.listDrafts) {
+            alert('Drafts are not available on this page.');
+            return;
+      }
+      const btn = $('myDraftsBtn');
+      const origLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Loading…';
+      let list = [];
+      try {
+            list = await window.CalibrationSync.listDrafts();
+      } catch (err) {
+            alert('Could not load drafts: ' + (err.message || err));
+      }
+      btn.disabled = false;
+      btn.textContent = origLabel;
+      if (!list.length) {
+            alert('No saved drafts.');
+            return;
+      }
+      renderMyDraftsList(list);
+      $('myDraftsModal').hidden = false;
+  }
+
+  function renderMyDraftsList(list) {
+      const container = $('myDraftsList');
+      container.innerHTML = list.map((rec, idx) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;${idx === 0 ? '' : 'border-top:1px solid #e2e6ea;'}">
+                <div>
+                        <strong>${rec.tagNumber || '(no tag)'}</strong>
+                                <span style="margin-left:8px;color:#666;">${rec.calibrationDate || 'no date'}</span>
+                                      </div>
+                                            <div>
+                                                    <button type="button" class="btn-secondary draft-delete" data-idx="${idx}" style="padding:6px 14px;margin-right:6px;">Delete</button>
+                                                            <button type="button" class="btn-primary draft-resume" data-idx="${idx}" style="padding:6px 14px;">Resume</button>
+                                                                  </div>
+                                                                      </div>
+                                                                        `).join('');
+
+      container.querySelectorAll('.draft-resume').forEach(btn => {
+            btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.getAttribute('data-idx'), 10);
+                    const rec = list[idx];
+                    if (rec.formData) {
+                              applyFormData(rec.formData);
+                    } else {
+                              $('instrumentId').value = rec.tagNumber || '';
+                              if (rec.calibrationDate) $('calDate').value = rec.calibrationDate;
+                    }
+                    closeMyDraftsModal();
+            });
+      });
+
+      container.querySelectorAll('.draft-delete').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                    const idx = parseInt(btn.getAttribute('data-idx'), 10);
+                    const rec = list[idx];
+                    if (!confirm('Delete this draft? This cannot be undone.')) return;
+                    try {
+                              await window.CalibrationSync.deleteDraft(rec.id);
+                              list.splice(idx, 1);
+                              renderMyDraftsList(list);
+                              if (!list.length) closeMyDraftsModal();
+                    } catch (err) {
+                              alert('Could not delete draft: ' + (err.message || err));
+                    }
+            });
+      });
+  }
+
+  function closeMyDraftsModal() {
+      $('myDraftsModal').hidden = true;
+  }
+
   // ---------- PDF Export ----------
 
   // ---------- Signature pad ----------
@@ -1613,6 +1732,9 @@ function clearAllFields() {
   if ($('uploadDb')) $('uploadDb').addEventListener('click', uploadToDatabase);
     if ($('loadPrevBtn')) $('loadPrevBtn').addEventListener('click', openLoadPreviousModal);
     if ($('loadPrevClose')) $('loadPrevClose').addEventListener('click', closeLoadPrevModal);
+    if ($('saveDraftBtn')) $('saveDraftBtn').addEventListener('click', saveDraft);
+    if ($('myDraftsBtn')) $('myDraftsBtn').addEventListener('click', openMyDraftsModal);
+    if ($('myDraftsClose')) $('myDraftsClose').addEventListener('click', closeMyDraftsModal);
 
     $('resetAll').addEventListener('click', () => {
       if (confirm('Clear all fields and reset the form?')) {
