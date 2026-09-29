@@ -1,9 +1,9 @@
-const CACHE = 'cal-app-v15';
+const CACHE = 'cal-app-v16';
 const ASSETS = [
         './',
         './index.html',
         './styles.css',
-        './app.js?v=8',
+        './app.js?v=9',
         './calibration-sync.js',
         './manifest.json',
         './icon-192.png',
