@@ -287,6 +287,7 @@ async function listRemoteForTag(tagNumber) {
     return [];
   }
   return events || [];
+}
 
   /**
    * Fetch every draft calibration (is_draft = true) across all instruments,
@@ -330,7 +331,6 @@ async function listRemoteForTag(tagNumber) {
         .eq("is_draft", true);
       if (error) console.warn("deleteDraft failed:", error.message || error);
   }
-}
 
 // Expose as a small global namespace so it drops into a vanilla-JS PWA
 // without a bundler/module system.
