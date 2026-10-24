@@ -4,9 +4,9 @@ Installable PWA for filling in 4–20 mA transmitter calibration test sheets, pr
 
 ## About the owner
 
-James is an instrumentation technician, not a software developer. He edits through the GitHub web UI and does not use a terminal.
+James is an instrumentation technician, not a software developer. He mostly edits through the GitHub web UI, and is comfortable copying and running command-line steps.
 
-- Do the work yourself, then explain what changed in plain words. Don't hand him command-line steps.
+- Do the work yourself, then explain what changed in plain words. When he needs to run something, give complete copy-paste commands rather than partial ones.
 - Ground instrument behaviour and calibration maths in the OEM manual or the standard, and say which.
 - Use Australian spelling and metric/SI units by default.
 
