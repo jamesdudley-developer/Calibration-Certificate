@@ -1526,16 +1526,26 @@ let exportingPdf = false;
   
 
 
+// Guards against saving the same certificate twice: a second tap while
+// the PDF is still building, or a tap after it already uploaded.
+let uploadingToDb = false;
+let lastUploadedKey = '';
 async function uploadToDatabase() {
   const btn = $('uploadDb');
+  if (uploadingToDb) return;
   if (!window.CalibrationSync) {
     alert('Database sync is not available on this page.');
     return;
   }
-  const doc = await buildCertificateDoc();
-  if (!doc) return;
+  const uploadKey = [($('instrumentId').value || '').trim(), $('calDate').value, $('certNo').value].join('|');
+  if (uploadKey === lastUploadedKey &&
+      !confirm('This certificate has already been uploaded. Upload it again as a second record?')) return;
+  uploadingToDb = true;
   const origLabel = btn.textContent;
   btn.disabled = true;
+  btn.textContent = 'Building PDF…';
+  const doc = await Promise.resolve().then(buildCertificateDoc).catch(err => { console.warn(err); return null; });
+  if (!doc) { uploadingToDb = false; btn.disabled = false; btn.textContent = origLabel; return; }
   btn.textContent = 'Uploading…';
   try {
     const pdfBlob = doc.output('blob');
@@ -1556,13 +1566,15 @@ async function uploadToDatabase() {
       formData: collectFormData(),
       pdfBlob: pdfBlob,
     });
+    lastUploadedKey = uploadKey;
     btn.textContent = 'Uploaded ✓';
-    setTimeout(() => { btn.textContent = origLabel; btn.disabled = false; }, 2500);
+    setTimeout(() => { btn.textContent = origLabel; btn.disabled = false; uploadingToDb = false; }, 2500);
   } catch (err) {
     console.warn('Upload to database failed:', err);
     alert('Upload failed: ' + (err.message || err) + '\n\nIt has been queued locally and will retry automatically when possible.');
     btn.textContent = origLabel;
     btn.disabled = false;
+    uploadingToDb = false;
   }
 }
 

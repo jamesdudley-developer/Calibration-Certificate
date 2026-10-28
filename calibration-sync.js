@@ -128,7 +128,26 @@ async function listLocalCalibrations(tagNumber) {
  * anything already synced is skipped. Call this on app load and whenever
  * the browser regains connectivity.
  */
-async function syncPending(supabaseClient) {
+// Only one sync runs at a time. Without this, the on-load sync, the
+// sync after a save and the 'online' sync could overlap, each read the
+// same unsynced record and each insert it, giving two database rows.
+let syncInFlight = null;
+let syncAgain = false;
+function syncPending(supabaseClient) {
+  if (syncInFlight) { syncAgain = true; return syncInFlight; }
+  syncInFlight = (async () => {
+    let total = { synced: 0, failed: 0 };
+    do {
+      syncAgain = false;
+      const r = await syncPendingOnce(supabaseClient);
+      total.synced += r.synced; total.failed += r.failed;
+    } while (syncAgain);
+    return total;
+  })().finally(() => { syncInFlight = null; });
+  return syncInFlight;
+}
+
+async function syncPendingOnce(supabaseClient) {
   const supabase = supabaseClient || window.__calSyncSupabase;
   if (!supabase) {
     console.warn("syncPending: no Supabase client configured, skipping.");
@@ -188,8 +207,10 @@ async function syncPending(supabaseClient) {
                       if (uploadErr) throw uploadErr;
             }
 
-      // 3. Insert the calibration_events row.
-      const { error: insertErr } = await supabase
+      // 3. Insert the calibration_events row. source_file is unique for
+      //    app-saved records, so a repeat upload of the same record is
+      //    refused by the database (23505) and treated as already synced.
+      const { data: inserted, error: insertErr } = await supabase
         .from("calibration_events")
         .insert({
           instrument_id: inst.id,
@@ -202,8 +223,23 @@ async function syncPending(supabaseClient) {
           source_file: `local-${rec.localId}`,
           form_data: rec.formData || null,
                     is_draft: !!rec.isDraft,
-        });
-      if (insertErr) throw insertErr;
+        })
+        .select("id")
+        .single();
+      if (insertErr && insertErr.code !== "23505") throw insertErr;
+
+      // 3b. Clear superseded drafts for this instrument: a finished
+      //     certificate replaces any draft, and a newer draft replaces an
+      //     older one. Only rows still marked as drafts are touched.
+      if (inserted && inserted.id) {
+        const { error: draftErr } = await supabase
+          .from("calibration_events")
+          .delete()
+          .eq("instrument_id", inst.id)
+          .eq("is_draft", true)
+          .neq("id", inserted.id);
+        if (draftErr) console.warn("Couldn't clear old drafts:", draftErr.message || draftErr);
+      }
 
       // 4. Mark synced locally (keep the record — don't delete — so the
       //    device retains an offline copy of everything it's ever logged).
@@ -281,6 +317,7 @@ async function listRemoteForTag(tagNumber) {
     .from("calibration_events")
     .select("id, calibration_date, result, certificate_no, technician, form_data")
     .eq("instrument_id", inst.id)
+    .eq("is_draft", false)
         .order("created_at", { ascending: false });
   if (evErr) {
     console.warn("listRemoteForTag failed:", evErr.message || evErr);
