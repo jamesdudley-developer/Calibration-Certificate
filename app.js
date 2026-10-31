@@ -2285,8 +2285,51 @@ function clearAllFields() {
     document.documentElement.style.overscrollBehaviorY = 'none';
 
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      setupUpdatePrompt();
     }
+  }
+
+  // ---------- "Update available" prompt ----------
+  // Opening the app always loads the newest version (sw.js is network-first
+  // for the page). This covers an app left open on a job: it checks for a
+  // new version when brought back to the screen and every 30 minutes, and
+  // when one has installed it shows a banner. Nothing reloads until the
+  // user taps Update, so a half-filled certificate is never lost.
+  function formHasUnsavedWork() {
+    if (($('instrumentId') && $('instrumentId').value.trim()) || ($('comments') && $('comments').value.trim())) return true;
+    return [...document.querySelectorAll('#asFoundBody .process-val, #asFoundBody .measured-ma, #asLeftBody .process-val, #asLeftBody .measured-ma')]
+      .some(el => (el.value || '').trim() !== '');
+  }
+
+  function showUpdateBanner() {
+    if ($('updateBanner')) return;
+    const bar = document.createElement('div');
+    bar.id = 'updateBanner';
+    bar.className = 'update-banner';
+    bar.setAttribute('role', 'status');
+    bar.innerHTML = `
+      <span>A new version of the app is ready.</span>
+      <button type="button" class="update-now">Update</button>
+      <button type="button" class="update-later" aria-label="Later">Later</button>`;
+    bar.querySelector('.update-now').addEventListener('click', () => {
+      if (formHasUnsavedWork() && !confirm('Updating reloads the app. Anything not uploaded or saved as a draft will be cleared from the form.\n\nUpdate now?')) return;
+      window.location.reload();
+    });
+    bar.querySelector('.update-later').addEventListener('click', () => bar.remove());
+    document.body.appendChild(bar);
+  }
+
+  function setupUpdatePrompt() {
+    const hadController = !!navigator.serviceWorker.controller; // false on the very first install
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadController) showUpdateBanner();
+    });
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      const check = () => { if (navigator.onLine) reg.update().catch(() => {}); };
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+      window.addEventListener('online', check);
+      setInterval(check, 30 * 60 * 1000);
+    }).catch(() => {});
   }
 
   // Prevent accidental value changes when the mouse wheel scrolls over a

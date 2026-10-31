@@ -771,3 +771,34 @@ html, body {
   margin-top: 10px;
 }
 .dp-foot button { flex: 1 1 0; }
+
+/* ── Update available banner ── */
+.update-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 10px 10px 10px 14px;
+  border-radius: 10px;
+  background: #0f2744;
+  color: #fff;
+  font-size: 0.85rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+.update-banner span { flex: 1 1 auto; }
+.update-banner button {
+  flex: 0 0 auto;
+  border-radius: 6px;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.update-banner .update-now { background: #fff; color: #0f2744; border: 0; }
+.update-banner .update-later { background: transparent; color: #fff; border: 1px solid rgba(255, 255, 255, 0.4); }

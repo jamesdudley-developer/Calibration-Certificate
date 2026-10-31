@@ -1,9 +1,9 @@
-const CACHE = 'cal-app-v20';
+const CACHE = 'cal-app-v21';
 const ASSETS = [
         './',
         './index.html',
-        './styles.css?v=8',
-        './app.js?v=12',
+        './styles.css?v=9',
+        './app.js?v=13',
         './calibration-sync.js?v=2',
         './lib/supabase.js',
         './manifest.json',
