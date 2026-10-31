@@ -18,6 +18,7 @@ Plain HTML, CSS and JavaScript. No framework, no build step, no npm, no bundler.
 - **Every change to any cached file needs a new cache version.** Bump `CACHE` in `sw.js` (currently `cal-app-vNN`), and bump the `?v=` query on `app.js` / `styles.css` in `index.html`. Keep the `?v=` in `sw.js` `ASSETS` matching `index.html`, or offline loads miss the cache.
 - **Every file the page loads must be in `ASSETS` in `sw.js`.** `lib/supabase.js` is loaded by `index.html` but is not yet precached; add it next time `sw.js` changes.
 - The service worker must never cache cross-origin requests (Supabase). Keep the origin check in the fetch handler.
+- The page itself (navigation requests) is network-first with a 4 s timeout, then the offline copy, so a new deploy shows on the next load. Versioned files and `lib/` are cache-first.
 
 ## Files
 
