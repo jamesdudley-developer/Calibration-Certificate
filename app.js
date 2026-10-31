@@ -257,7 +257,17 @@
     }
     pctTd.appendChild(pctInput);
 
-    tr.append(pointTd, valTd, targetTd, measTd, errTd, pctTd);
+    const delTd = document.createElement('td');
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'row-del';
+    delBtn.textContent = '×';
+    delBtn.title = 'Delete test point';
+    delBtn.setAttribute('aria-label', 'Delete test point');
+    delBtn.addEventListener('click', () => deleteTestPoint(tr));
+    delTd.appendChild(delBtn);
+
+    tr.append(pointTd, valTd, targetTd, measTd, errTd, pctTd, delTd);
 
     // listeners
     if (switchMode) {
@@ -275,6 +285,37 @@
     return tr;
   }
 
+  // Remove one AS FOUND / AS LEFT test point. Asks first only if the row
+  // has something typed in it. The last remaining row is cleared rather
+  // than removed so the table is never empty. If the point numbers were
+  // in plain 1, 2, 3… order they are renumbered to close the gap.
+  function deleteTestPoint(tr) {
+    const body = tr.parentElement;
+    if (!body) return;
+    const hasData = [...tr.querySelectorAll('input:not(.point-num):not([readonly]), select')]
+      .some(el => (el.value || '').trim() !== '');
+    if (hasData && !confirm('Delete this test point and the readings in it?')) return;
+
+    const rows = [...body.children];
+    if (rows.length <= 1) {
+      tr.querySelectorAll('input:not(.point-num), select').forEach(el => { el.value = ''; });
+      recalcRow(tr);
+      updateChart();
+      return;
+    }
+    const wasSequential = rows.every((r, i) => num(r.querySelector('.point-num').value) === i + 1);
+    tr.remove();
+    if (wasSequential) {
+      [...body.children].forEach((r, i) => { r.querySelector('.point-num').value = i + 1; });
+    }
+    updateChart();
+  }
+
+  // Today's date as yyyy-mm-dd in local time (toISOString() is UTC, which
+  // gives yesterday's date in Brisbane before 10 am).
+  function localISODate(d = new Date()) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
 
   function todayYYMMDD() {
     const d = new Date();
@@ -645,11 +686,28 @@
   function addEquipRow(device = '', serial = '', due = '') {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><input type="text" value="${device}" placeholder="Device" /></td>
-      <td><input type="text" value="${serial}" placeholder="Serial" /></td>
-      <td><input type="date" value="${due}" /></td>
+      <td><input type="text" placeholder="Device" /></td>
+      <td><input type="text" placeholder="Serial" /></td>
+      <td><input type="date" /></td>
     `;
+    const inputs = tr.querySelectorAll('input');
+    inputs[0].value = device || '';
+    inputs[1].value = serial || '';
+    inputs[2].value = due || '';
     $('equipBody').appendChild(tr);
+    enhanceDateInputs(tr);
+    decorateEquipRows();
+  }
+
+  // Reads one equipment row. The dd/mm/yyyy display box (.dmy-text) is
+  // skipped so the real yyyy-mm-dd date input is always the third value.
+  function readEquipRow(tr) {
+    const inputs = tr.querySelectorAll('input:not(.dmy-text)');
+    return {
+      device: inputs[0] ? inputs[0].value : '',
+      serial: inputs[1] ? inputs[1].value : '',
+      due: inputs[2] ? inputs[2].value : '',
+    };
   }
 
   // ---------- Full form snapshot (save / reopen a past certificate) ----------
@@ -657,12 +715,7 @@
   function collectFormData() {
     const equipment = [];
     document.querySelectorAll('#equipBody tr').forEach(tr => {
-      const inputs = tr.querySelectorAll('input');
-      equipment.push({
-        device: inputs[0] ? inputs[0].value : '',
-        serial: inputs[1] ? inputs[1].value : '',
-        due: inputs[2] ? inputs[2].value : '',
-      });
+      equipment.push(readEquipRow(tr));
     });
 
     function collectRows(tbodyId) {
@@ -836,7 +889,7 @@
     container.innerHTML = list.map((rec, idx) => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;${idx === 0 ? '' : 'border-top:1px solid #ddd;'}">
         <div>
-          <strong>${rec.calibration_date || '—'}</strong>
+          <strong>${formatDateDMY(rec.calibration_date) || '—'}</strong>
           <span style="margin-left:8px;">${rec.result || ''}</span>
           <span style="margin-left:8px;color:#666;">${rec.certificate_no ? 'Cert #' + rec.certificate_no : ''}</span>
           ${!rec.form_data ? '<div style="font-size:11px;color:#b45f06;margin-top:2px;">No detailed data saved — only summary fields will load.</div>' : ''}
@@ -887,6 +940,7 @@
       const origLabel = btn.textContent;
       btn.disabled = true;
       btn.textContent = 'Saving draft…';
+      rememberEntries();
       try {
             const resultRaw = ($('result').value || '').toUpperCase();
             const resultMapped = resultRaw === 'FAILED' ? 'Failed' : 'Passed';
@@ -947,7 +1001,7 @@
           <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;${idx === 0 ? '' : 'border-top:1px solid #e2e6ea;'}">
                 <div>
                         <strong>${rec.tagNumber || '(no tag)'}</strong>
-                                <span style="margin-left:8px;color:#666;">${rec.calibrationDate || 'no date'}</span>
+                                <span style="margin-left:8px;color:#666;">${formatDateDMY(rec.calibrationDate) || 'no date'}</span>
                                       </div>
                                             <div>
                                                     <button type="button" class="btn-secondary draft-delete" data-idx="${idx}" style="padding:6px 14px;margin-right:6px;">Delete</button>
@@ -1104,6 +1158,7 @@
     alert('Excel library failed to load. Check your internet connection and try again.');
     return;
   }
+  rememberEntries();
 
   const wb = XLSX.utils.book_new();
   const unit = unitLabel();
@@ -1122,7 +1177,7 @@
     ['Extended Model', ($('extendedModel') && $('extendedModel').value) || ''],
     [],
     ['Calibration Details'],
-    ['Calibration Date', $('calDate').value || ''],
+    ['Calibration Date', formatDateDMY($('calDate').value) || ''],
     ['Calibration Interval', $('calInterval').value || ''],
     ['Technician', $('technician').value || ''],
     ['Max Error Limit (%)', $('maxErrorLimit').value || ''],
@@ -1146,12 +1201,8 @@
   ];
 
   document.querySelectorAll('#equipBody tr').forEach(tr => {
-    const inputs = tr.querySelectorAll('input');
-    rows.push([
-      inputs[0] ? inputs[0].value : '',
-      inputs[1] ? inputs[1].value : '',
-      inputs[2] ? inputs[2].value : ''
-    ]);
+    const eq = readEquipRow(tr);
+    rows.push([eq.device, eq.serial, formatDateDMY(eq.due) || '']);
   });
 
   rows.push([]);
@@ -1187,7 +1238,7 @@
   rows.push([]);
   rows.push(['Sign Off']);
   rows.push(['Name', ($('signName') && $('signName').value) || '']);
-  rows.push(['Date', ($('signDate') && $('signDate').value) || '']);
+  rows.push(['Date', formatDateDMY(($('signDate') && $('signDate').value) || '') || '']);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [{ wch: 24 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 14 }, { wch: 14 }];
@@ -1277,11 +1328,11 @@ async function buildCertificateDoc() {
 
     const equipData = [];
     document.querySelectorAll('#equipBody tr').forEach(tr => {
-      const inputs = tr.querySelectorAll('input');
+      const eq = readEquipRow(tr);
       equipData.push([
-        inputs[0].value || '—',
-        inputs[1].value || '—',
-formatDateDMY(inputs[2].value) || '-'
+        eq.device || '—',
+        eq.serial || '—',
+        formatDateDMY(eq.due) || '-'
       ]);
     });
 
@@ -1514,6 +1565,7 @@ let exportingPdf = false;
       try {
           const doc = await buildCertificateDoc();
           if (!doc) return;
+          rememberEntries();
           const cert = ($('certNo').value || '').trim() || (certDateStamp() + '-' + (($('instrumentId').value || '').trim() || 'Certificate'));
             const filename = `${cert}.pdf`;
           doc.save(filename);
@@ -1547,6 +1599,7 @@ async function uploadToDatabase() {
   const doc = await Promise.resolve().then(buildCertificateDoc).catch(err => { console.warn(err); return null; });
   if (!doc) { uploadingToDb = false; btn.disabled = false; btn.textContent = origLabel; return; }
   btn.textContent = 'Uploading…';
+  rememberEntries();
   try {
     const pdfBlob = doc.output('blob');
     const resultRaw = ($('result').value || '').toUpperCase();
@@ -1554,7 +1607,7 @@ async function uploadToDatabase() {
     const intervalMatch = (($('calInterval').value || '').match(/\d+/) || [])[0];
     await window.CalibrationSync.save({
       tagNumber: ($('instrumentId').value || '').trim(),
-      calibrationDate: $('calDate').value || new Date().toISOString().slice(0, 10),
+      calibrationDate: $('calDate').value || localISODate(),
       result: resultMapped,
       intervalMonths: intervalMatch ? parseInt(intervalMatch, 10) : 12,
       technician: $('technician').value || null,
@@ -1605,20 +1658,364 @@ function clearAllFields() {
     // equipment: leave 2 empty rows
     const equipBody = $('equipBody');
     equipBody.innerHTML = '';
-    for (let i = 0; i < 2; i++) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><input type="text" placeholder="Device" /></td>
-        <td><input type="text" placeholder="Serial" /></td>
-        <td><input type="date" /></td>`;
-      equipBody.appendChild(tr);
-    }
+    addEquipRow();
+    addEquipRow();
 
     if (window.__clearSignature) window.__clearSignature();
     updateSpan();
     updateCertNo();
   }
 
+
+  // ---------- dd/mm/yyyy date fields ----------
+  // Each <input type="date"> stays in the page holding the real yyyy-mm-dd
+  // value, so every existing read/write (exports, form_data, validation)
+  // works unchanged. It is hidden over a small calendar button, and a text
+  // box beside it shows and accepts the date as dd/mm/yyyy, whatever the
+  // phone or browser's own locale is.
+  const NATIVE_VALUE = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  const CAL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>';
+
+  // Turns typed text into yyyy-mm-dd. Accepts d/m/yyyy, dd/mm/yy (→ 20yy),
+  // and separators / . - or space. Returns '' for blank, null if invalid.
+  function parseDMY(text) {
+    const t = (text || '').trim();
+    if (!t) return '';
+    let m = t.match(/^(\d{1,2})[\/.\-\s](\d{1,2})[\/.\-\s](\d{2}|\d{4})$/);
+    if (!m) {
+      const digits = t.replace(/\D/g, '');
+      if (digits.length === 8) m = [null, digits.slice(0, 2), digits.slice(2, 4), digits.slice(4)];
+      else if (digits.length === 6) m = [null, digits.slice(0, 2), digits.slice(2, 4), digits.slice(4)];
+      else return null;
+    }
+    const year = m[3].length === 2 ? '20' + m[3] : m[3];
+    const iso = `${year}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+    return isValidISODate(iso) ? iso : null;
+  }
+
+  function enhanceDateInput(native) {
+    if (native.dataset.dmy) return;
+    native.dataset.dmy = '1';
+
+    const wrap = document.createElement('span');
+    wrap.className = 'dmy-wrap';
+    const text = document.createElement('input');
+    text.type = 'text';
+    text.className = 'dmy-text';
+    text.placeholder = 'dd/mm/yyyy';
+    text.inputMode = 'numeric';
+    text.autocomplete = 'off';
+    text.maxLength = 10;
+    const cal = document.createElement('span');
+    cal.className = 'dmy-cal';
+    cal.title = 'Pick from calendar';
+    cal.innerHTML = CAL_ICON;
+
+    native.parentNode.insertBefore(wrap, native);
+    wrap.appendChild(text);   // text box first, so tapping the label focuses it
+    wrap.appendChild(cal);
+    cal.appendChild(native);
+    native.tabIndex = -1;
+    native.setAttribute('aria-hidden', 'true');
+
+    let syncing = false; // true while the text box is pushing a value into the date input
+    const showFromNative = () => {
+      if (syncing) return;
+      const iso = NATIVE_VALUE.get.call(native);
+      text.value = iso ? formatDateDMY(iso) : '';
+      if (!native.classList.contains('date-invalid')) {
+        text.classList.remove('date-invalid');
+        text.title = '';
+      }
+    };
+    const setNative = (iso) => {
+      if (NATIVE_VALUE.get.call(native) === iso) return;
+      NATIVE_VALUE.set.call(native, iso);
+      syncing = true;
+      try {
+        native.dispatchEvent(new Event('input', { bubbles: true }));
+        native.dispatchEvent(new Event('change', { bubbles: true }));
+      } finally { syncing = false; }
+    };
+
+    // Any code that sets .value (load certificate, reset, prefill) also
+    // updates the dd/mm/yyyy box.
+    Object.defineProperty(native, 'value', {
+      configurable: true,
+      get() { return NATIVE_VALUE.get.call(this); },
+      set(v) { NATIVE_VALUE.set.call(this, v); showFromNative(); },
+    });
+
+    // Calendar picker → text box
+    native.addEventListener('input', showFromNative);
+    native.addEventListener('change', showFromNative);
+    native.addEventListener('click', () => { try { native.showPicker(); } catch (_) {} });
+
+    // Typing → auto-insert the slashes, update the real value when complete
+    text.addEventListener('input', (e) => {
+      const deleting = e.inputType && e.inputType.startsWith('delete');
+      // Auto-insert slashes only while the entry is plain digits in the
+      // dd/mm/yyyy positions; if the user types their own slashes
+      // (e.g. 5/3/26) leave it alone and tidy it up on leaving the box.
+      const ownSlashes = /\//.test(text.value.replace(/^(\d{2})\/(\d{2})\/|^(\d{2})\//, ''));
+      if (!deleting && !ownSlashes && /^[\d\/]*$/.test(text.value)) {
+        const d = text.value.replace(/\D/g, '').slice(0, 8);
+        let out = d.slice(0, 2);
+        if (d.length > 2) out += '/' + d.slice(2, 4);
+        if (d.length > 4) out += '/' + d.slice(4);
+        if (d.length === 2 || d.length === 4) out += '/';
+        text.value = out;
+      }
+      text.classList.remove('date-invalid');
+      const iso = parseDMY(text.value);
+      if (iso !== null && (iso === '' || /(^|\D)\d{4}$/.test(text.value.trim()))) setNative(iso);
+      else setNative('');
+    });
+    text.addEventListener('blur', () => {
+      const iso = parseDMY(text.value);
+      if (iso === null) {
+        setNative('');
+        text.classList.add('date-invalid');
+        text.title = 'Enter the date as dd/mm/yyyy';
+      } else {
+        setNative(iso);
+        showFromNative();
+      }
+    });
+
+    // Mirror the red "invalid date" highlight from validateDates()
+    new MutationObserver(() => {
+      if (native.classList.contains('date-invalid')) {
+        text.classList.add('date-invalid');
+        text.title = native.title || 'Invalid date';
+      } else if (parseDMY(text.value) !== null) {
+        text.classList.remove('date-invalid');
+        text.title = '';
+      }
+    }).observe(native, { attributes: true, attributeFilter: ['class', 'title'] });
+
+    showFromNative();
+  }
+
+  function enhanceDateInputs(root = document) {
+    root.querySelectorAll('input[type="date"]:not([data-dmy])').forEach(enhanceDateInput);
+  }
+
+  // ---------- Saved entries (recall drop-downs) ----------
+  // Values typed into Calibration Details, Calibration Equipment and
+  // Sign Off are saved to Supabase (form_field_options and
+  // calibration_equipment) whenever a certificate is exported, uploaded or
+  // saved as a draft. They come back as drop-down suggestions on each box.
+  // A copy is kept on the device so the lists work with no signal, and
+  // saves made offline are queued and sent when the connection returns.
+  const SAVED_FIELD_IDS = ['calInterval', 'technician', 'maxErrorLimit', 'serviceReason', 'adjLimit',
+    'workOrder', 'siteLocation', 'sensorType', 'ambientTemp', 'sensorLimits', 'signName'];
+  const SAVED_CACHE_KEY = 'calSavedEntries.v1';
+  const SAVED_QUEUE_KEY = 'calSavedEntriesQueue.v1';
+  let savedEntries = { fields: {}, equipment: [] };
+
+  function lsGet(key, fallback) {
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (_) { return fallback; }
+  }
+  function lsSet(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch (_) {}
+  }
+  function getSb() {
+    try { return (typeof sbClient !== 'undefined' && sbClient) ? sbClient : null; } catch (_) { return null; }
+  }
+
+  function ensureDatalist(id) {
+    let dl = document.getElementById(id);
+    if (!dl) {
+      dl = document.createElement('datalist');
+      dl.id = id;
+      document.body.appendChild(dl);
+    }
+    return dl;
+  }
+  function fillDatalist(id, items) {
+    const dl = ensureDatalist(id);
+    dl.innerHTML = '';
+    items.forEach(it => {
+      const o = document.createElement('option');
+      o.value = it.value;
+      if (it.label) o.label = it.label;
+      dl.appendChild(o);
+    });
+  }
+
+  function renderSavedEntries() {
+    SAVED_FIELD_IDS.forEach(id => {
+      fillDatalist('dl-' + id, (savedEntries.fields[id] || []).map(v => ({ value: v })));
+    });
+    const eq = savedEntries.equipment || [];
+    const devices = [];
+    const seen = new Set();
+    eq.forEach(e => {
+      if (!e.device || seen.has(e.device.toLowerCase())) return;
+      seen.add(e.device.toLowerCase());
+      const serials = eq.filter(x => x.device.toLowerCase() === e.device.toLowerCase() && x.serial).map(x => x.serial);
+      devices.push({ value: e.device, label: serials.length ? 'S/N ' + serials.join(', ') : '' });
+    });
+    fillDatalist('dl-equip-device', devices);
+    fillDatalist('dl-equip-serial', eq.filter(e => e.serial).map(e => ({
+      value: e.serial,
+      label: e.device + (e.next_due ? ' · due ' + formatDateDMY(e.next_due) : ''),
+    })));
+  }
+
+  function decorateEquipRows() {
+    document.querySelectorAll('#equipBody tr').forEach(tr => {
+      const inputs = tr.querySelectorAll('input:not(.dmy-text)');
+      if (inputs[0]) { inputs[0].setAttribute('list', 'dl-equip-device'); inputs[0].autocomplete = 'off'; }
+      if (inputs[1]) { inputs[1].setAttribute('list', 'dl-equip-serial'); inputs[1].autocomplete = 'off'; }
+    });
+  }
+
+  // Picking a saved device or serial fills the rest of that row (only boxes
+  // that are still empty, so nothing typed by hand is overwritten).
+  function onEquipPicked(e) {
+    const t = e.target;
+    if (!t || t.tagName !== 'INPUT' || t.classList.contains('dmy-text') || t.type === 'date') return;
+    const tr = t.closest('tr');
+    if (!tr) return;
+    const inputs = tr.querySelectorAll('input:not(.dmy-text)');
+    const [devEl, serEl, dueEl] = inputs;
+    const val = (t.value || '').trim().toLowerCase();
+    if (!val) return;
+    const eq = savedEntries.equipment || [];
+    let match = null;
+    if (t === serEl) {
+      match = eq.find(x => x.serial && x.serial.toLowerCase() === val);
+    } else if (t === devEl) {
+      const forDevice = eq.filter(x => x.device.toLowerCase() === val);
+      const typedSerial = (serEl.value || '').trim().toLowerCase();
+      match = typedSerial ? forDevice.find(x => x.serial.toLowerCase() === typedSerial)
+                          : (forDevice.length === 1 ? forDevice[0] : null);
+    }
+    if (!match) return;
+    if (devEl && !devEl.value.trim()) devEl.value = match.device;
+    if (serEl && !serEl.value.trim()) serEl.value = match.serial;
+    if (dueEl && !dueEl.value && match.next_due) {
+      dueEl.value = match.next_due;
+      validateDates();
+    }
+  }
+
+  // Adds this certificate's values to the local lists straight away.
+  function mergeIntoLocal(fields, equipment) {
+    fields.forEach(f => {
+      const list = savedEntries.fields[f.field] || (savedEntries.fields[f.field] = []);
+      const i = list.findIndex(v => v.toLowerCase() === f.value.toLowerCase());
+      if (i >= 0) list.splice(i, 1);
+      list.unshift(f.value);
+    });
+    equipment.forEach(e => {
+      const key = (e.serial || 'dev:' + e.device).toLowerCase();
+      const list = savedEntries.equipment;
+      const i = list.findIndex(x => (x.serial || 'dev:' + x.device).toLowerCase() === key);
+      const prev = i >= 0 ? list.splice(i, 1)[0] : {};
+      list.unshift({
+        device: e.device || prev.device || '',
+        serial: e.serial || prev.serial || '',
+        next_due: e.due || prev.next_due || null,
+      });
+    });
+    lsSet(SAVED_CACHE_KEY, savedEntries);
+    renderSavedEntries();
+  }
+
+  function rememberEntries() {
+    const fields = [];
+    SAVED_FIELD_IDS.forEach(id => {
+      const v = ($(id) && $(id).value || '').trim();
+      if (v) fields.push({ field: id, value: v });
+    });
+    const equipment = [];
+    document.querySelectorAll('#equipBody tr').forEach(tr => {
+      const eq = readEquipRow(tr);
+      const device = eq.device.trim(), serial = eq.serial.trim();
+      if (device || serial) equipment.push({ device, serial, due: isValidISODate(eq.due) ? eq.due : '' });
+    });
+    if (!fields.length && !equipment.length) return;
+    mergeIntoLocal(fields, equipment);
+    const queue = lsGet(SAVED_QUEUE_KEY, []);
+    queue.push({ p_fields: fields, p_equipment: equipment });
+    lsSet(SAVED_QUEUE_KEY, queue.slice(-50));
+    flushSavedQueue();
+  }
+
+  let flushingSaved = false;
+  async function flushSavedQueue() {
+    const sb = getSb();
+    if (!sb || flushingSaved || !navigator.onLine) return;
+    flushingSaved = true;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return; // not signed in yet; retried on sign-in
+      let queue = lsGet(SAVED_QUEUE_KEY, []);
+      while (queue.length) {
+        const { error } = await sb.rpc('record_form_entries', queue[0]);
+        if (error) {
+          const msg = (error.message || '') + ' ' + (error.details || '');
+          if (!navigator.onLine || /fetch|network|timeout|JWT/i.test(msg)) break; // try again later
+          console.warn('Saved entries rejected, dropping:', error); // e.g. viewer role
+        }
+        queue.shift();
+        lsSet(SAVED_QUEUE_KEY, queue);
+      }
+      await refreshSavedEntries();
+    } catch (err) {
+      console.warn('Saving entries failed, will retry:', err);
+    } finally {
+      flushingSaved = false;
+    }
+  }
+
+  async function refreshSavedEntries() {
+    const sb = getSb();
+    if (!sb || !navigator.onLine) return;
+    try {
+      const [opts, equip] = await Promise.all([
+        sb.from('form_field_options').select('field,value,use_count,last_used').limit(2000),
+        sb.from('calibration_equipment').select('device,serial,next_due,use_count,last_used').limit(500),
+      ]);
+      if (opts.error || equip.error) return;
+      const byUse = (a, b) => (b.use_count - a.use_count) || String(b.last_used).localeCompare(String(a.last_used));
+      const fields = {};
+      opts.data.sort(byUse).forEach(r => { (fields[r.field] || (fields[r.field] = [])).push(r.value); });
+      savedEntries = { fields, equipment: equip.data.sort(byUse) };
+      lsSet(SAVED_CACHE_KEY, savedEntries);
+      renderSavedEntries();
+    } catch (err) {
+      console.warn('Could not load saved entries:', err);
+    }
+  }
+
+  function setupSavedEntries() {
+    const cached = lsGet(SAVED_CACHE_KEY, null);
+    if (cached && cached.fields) savedEntries = { fields: cached.fields, equipment: cached.equipment || [] };
+    SAVED_FIELD_IDS.forEach(id => {
+      const el = $(id);
+      if (!el) return;
+      el.setAttribute('list', 'dl-' + id);
+      el.autocomplete = 'off';
+    });
+    decorateEquipRows();
+    renderSavedEntries();
+    if ($('equipBody')) {
+      $('equipBody').addEventListener('change', onEquipPicked);
+      $('equipBody').addEventListener('input', (e) => {
+        // Datalist picks arrive as an input event with no typing inputType
+        if (!e.inputType || e.inputType === 'insertReplacementText') onEquipPicked(e);
+      });
+    }
+    window.addEventListener('online', flushSavedQueue);
+    const sb = getSb();
+    if (sb && sb.auth && sb.auth.onAuthStateChange) {
+      sb.auth.onAuthStateChange((_event, session) => { if (session) setTimeout(flushSavedQueue, 0); });
+    }
+  }
 
   // ---------- PWA install prompt ----------
   let deferredPrompt = null;
@@ -1683,7 +2080,7 @@ function clearAllFields() {
 
   // ---------- Init ----------
   function init() {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localISODate();
     if ($('calDate')) $('calDate').value = '';
     if ($('signDate')) $('signDate').value = today;
     applyPrefillFromQuery();
@@ -1771,6 +2168,8 @@ function clearAllFields() {
     updateCertNo();
     initSignature();
     setupInstall();
+    enhanceDateInputs();
+    setupSavedEntries();
 
     // Reduce accidental pull-to-refresh while scrolling the form
     document.body.style.overscrollBehaviorY = 'none';

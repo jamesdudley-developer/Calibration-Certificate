@@ -9,7 +9,7 @@
   <title>Calibration Certificate</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=6" />
+  <link rel="stylesheet" href="styles.css?v=7" />
   <script src="lib/chart.umd.min.js"></script>
   <script src="lib/jspdf.umd.min.js"></script>
   <script src="lib/jspdf.plugin.autotable.min.js"></script>
@@ -185,6 +185,7 @@
               <th id="afCol4Header">Measured mA</th>
               <th id="afCol5Header">mA Error</th>
               <th id="afCol6Header">% Span Error</th>
+              <th class="col-del" aria-label="Delete"></th>
             </tr>
           </thead>
           <tbody id="asFoundBody">
@@ -208,6 +209,7 @@
               <th id="alCol4Header">Measured mA</th>
               <th id="alCol5Header">mA Error</th>
               <th id="alCol6Header">% Span Error</th>
+              <th class="col-del" aria-label="Delete"></th>
             </tr>
           </thead>
           <tbody id="asLeftBody">
@@ -348,6 +350,6 @@
 
   initAuth();
 </script>
-        <script src="app.js?v=10"></script>
+        <script src="app.js?v=11"></script>
 </body>
 </html>

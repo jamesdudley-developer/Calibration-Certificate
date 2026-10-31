@@ -32,6 +32,8 @@ Plain HTML, CSS and JavaScript. No framework, no build step, no npm, no bundler.
 
 ## Calibration logic to protect
 
+- Date fields show and accept dd/mm/yyyy. The real `<input type="date">` is kept (hidden over the calendar button) and still holds yyyy-mm-dd, so read dates from it, never from the `.dmy-text` box. Read equipment rows with `readEquipRow(tr)`.
+
 - Switch mode uses Open/Closed dropdowns with its own pass/fail rules, separate from analog test points.
 - Square-root extraction is a per-instrument toggle; check both linear and square-root paths after any change to error calculation.
 - A past CSS specificity bug hid toggles. After style changes, check toggles still show.
@@ -43,6 +45,7 @@ Supabase project `fwnbnssiekedrruikytk`. The publishable key in `index.html` is 
 - `instruments`: one row per instrument. `tag_number` is unique and is the AMS Tag used by Terminal Gauging Services (TGS). Also `area`, `manufacturer`, `model`, `serial_number`, `interval_months` (default 12).
 - `calibration_events`: one row per calibration. `result` must be `Passed` or `Failed`. `pdf_path` points into the `certificates` storage bucket. `form_data` (jsonb) holds the full form so a certificate can be reopened; `is_draft` marks drafts.
 - `sites`, `profiles` (roles: `admin`, `editor`, `viewer`), `instrument_documents`, `calibration_procedures`, `calibration_procedure_items`.
+- `form_field_options` (field, value, use_count) and `calibration_equipment` (device, serial, next_due; unique by serial, or by device when there is no serial): saved entries behind the form's drop-down suggestions. Written only through the `record_form_entries(p_fields, p_equipment)` function, which `app.js` calls on PDF/Excel export, upload and draft save. The app keeps a copy in `localStorage` and queues saves made offline.
 
 Changes to these tables also affect the Calibration-Tracker app. Check both before altering a column.
 
