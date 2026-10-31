@@ -1706,15 +1706,18 @@ function clearAllFields() {
     text.inputMode = 'numeric';
     text.autocomplete = 'off';
     text.maxLength = 10;
-    const cal = document.createElement('span');
+    const cal = document.createElement('button');
+    cal.type = 'button';
     cal.className = 'dmy-cal';
     cal.title = 'Pick from calendar';
+    cal.setAttribute('aria-label', 'Pick from calendar');
     cal.innerHTML = CAL_ICON;
 
     native.parentNode.insertBefore(wrap, native);
     wrap.appendChild(text);   // text box first, so tapping the label focuses it
     wrap.appendChild(cal);
-    cal.appendChild(native);
+    wrap.appendChild(native); // kept, hidden, holding the yyyy-mm-dd value
+    native.classList.add('dmy-native');
     native.tabIndex = -1;
     native.setAttribute('aria-hidden', 'true');
 
@@ -1749,7 +1752,16 @@ function clearAllFields() {
     // Calendar picker → text box
     native.addEventListener('input', showFromNative);
     native.addEventListener('change', showFromNative);
-    native.addEventListener('click', () => { try { native.showPicker(); } catch (_) {} });
+    // Our own calendar, not the phone's: the phone's picker follows its
+    // region setting and on a US-region phone asks for mm/dd/yyyy.
+    cal.addEventListener('click', (e) => {
+      e.preventDefault();
+      openDatePicker(NATIVE_VALUE.get.call(native), (iso) => {
+        setNative(iso);
+        showFromNative();
+        text.classList.remove('date-invalid');
+      });
+    });
 
     // Typing → auto-insert the slashes, update the real value when complete
     text.addEventListener('input', (e) => {
@@ -1795,6 +1807,103 @@ function clearAllFields() {
     }).observe(native, { attributes: true, attributeFilter: ['class', 'title'] });
 
     showFromNative();
+  }
+
+  // ---------- In-app calendar (always dd/mm/yyyy, weeks start Monday) ----------
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+    'August', 'September', 'October', 'November', 'December'];
+  let pickerEl = null;
+  let pickerState = null; // { year, month, selected, onPick }
+
+  function buildPicker() {
+    pickerEl = document.createElement('div');
+    pickerEl.className = 'dp-overlay';
+    pickerEl.hidden = true;
+    pickerEl.innerHTML = `
+      <div class="dp" role="dialog" aria-label="Select date">
+        <div class="dp-head">
+          <button type="button" class="dp-nav" data-step="-1" aria-label="Previous month">‹</button>
+          <select class="dp-month" aria-label="Month"></select>
+          <select class="dp-year" aria-label="Year"></select>
+          <button type="button" class="dp-nav" data-step="1" aria-label="Next month">›</button>
+        </div>
+        <div class="dp-dow"><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span></div>
+        <div class="dp-grid"></div>
+        <div class="dp-foot">
+          <button type="button" class="btn-secondary dp-clear">Clear</button>
+          <button type="button" class="btn-secondary dp-today">Today</button>
+          <button type="button" class="btn-secondary dp-cancel">Cancel</button>
+        </div>
+      </div>`;
+    document.body.appendChild(pickerEl);
+    const monthSel = pickerEl.querySelector('.dp-month');
+    MONTHS.forEach((m, i) => monthSel.add(new Option(m, i)));
+
+    pickerEl.addEventListener('click', (e) => { if (e.target === pickerEl) closeDatePicker(); });
+    pickerEl.querySelectorAll('.dp-nav').forEach(b => b.addEventListener('click', () => {
+      const d = new Date(pickerState.year, pickerState.month + Number(b.dataset.step), 1);
+      pickerState.year = d.getFullYear();
+      pickerState.month = d.getMonth();
+      renderPicker();
+    }));
+    monthSel.addEventListener('change', () => { pickerState.month = Number(monthSel.value); renderPicker(); });
+    pickerEl.querySelector('.dp-year').addEventListener('change', (e) => {
+      pickerState.year = Number(e.target.value); renderPicker();
+    });
+    pickerEl.querySelector('.dp-grid').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-iso]');
+      if (b) pickDate(b.dataset.iso);
+    });
+    pickerEl.querySelector('.dp-today').addEventListener('click', () => pickDate(localISODate()));
+    pickerEl.querySelector('.dp-clear').addEventListener('click', () => pickDate(''));
+    pickerEl.querySelector('.dp-cancel').addEventListener('click', closeDatePicker);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && pickerEl && !pickerEl.hidden) closeDatePicker();
+    });
+  }
+
+  function renderPicker() {
+    const { year, month, selected } = pickerState;
+    pickerEl.querySelector('.dp-month').value = month;
+    const yearSel = pickerEl.querySelector('.dp-year');
+    const thisYear = new Date().getFullYear();
+    const from = Math.min(thisYear - 10, year), to = Math.max(thisYear + 10, year);
+    yearSel.innerHTML = '';
+    for (let y = from; y <= to; y++) yearSel.add(new Option(y, y));
+    yearSel.value = year;
+
+    const today = localISODate();
+    const first = new Date(year, month, 1);
+    const lead = (first.getDay() + 6) % 7; // Monday = 0
+    const days = new Date(year, month + 1, 0).getDate();
+    let html = '<span></span>'.repeat(lead);
+    for (let d = 1; d <= days; d++) {
+      const iso = localISODate(new Date(year, month, d));
+      const cls = ['dp-day'];
+      if (iso === today) cls.push('dp-today-mark');
+      if (iso === selected) cls.push('dp-selected');
+      html += `<button type="button" class="${cls.join(' ')}" data-iso="${iso}" aria-label="${formatDateDMY(iso)}">${d}</button>`;
+    }
+    pickerEl.querySelector('.dp-grid').innerHTML = html;
+  }
+
+  function openDatePicker(currentIso, onPick) {
+    if (!pickerEl) buildPicker();
+    const base = isValidISODate(currentIso) ? parseISODate(currentIso) : new Date();
+    pickerState = { year: base.getFullYear(), month: base.getMonth(), selected: currentIso || '', onPick };
+    renderPicker();
+    pickerEl.hidden = false;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  }
+
+  function pickDate(iso) {
+    const cb = pickerState && pickerState.onPick;
+    closeDatePicker();
+    if (cb) cb(iso);
+  }
+
+  function closeDatePicker() {
+    if (pickerEl) pickerEl.hidden = true;
   }
 
   function enhanceDateInputs(root = document) {
